@@ -1,0 +1,891 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.20.0.final using JasperReports Library version 6.20.0-2bc7ab61c56f459e8176eb05c7705e145cd400ad  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="NewSalesPerRoute" language="groovy" pageWidth="963" pageHeight="595" orientation="Landscape" columnWidth="935" leftMargin="14" rightMargin="14" topMargin="20" bottomMargin="20" isIgnorePagination="true" uuid="28ba79ff-b668-4549-b274-8af66a186340">
+	<property name="ireport.zoom" value="2.0"/>
+	<property name="ireport.x" value="1086"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.jasperserver.reportUnit" value="/reports/eBookingMC/COLORLINE_SETUP/SalesPerRoute"/>
+	<property name="ireport.jasperserver.url" value="http://192.168.90.15:18080/jasperserver/"/>
+	<property name="ireport.jasperserver.user" value="jasperadmin"/>
+	<property name="ireport.jasperserver.report.resource" value="/reports/eBookingMC/COLORLINE_SETUP/SalesPerRoute_files/SalesPerRoute_jrxml"/>
+	<property name="com.jaspersoft.studio.report.unit.description" value="Sales Per Route"/>
+	<property name="com.jaspersoft.studio.report.description" value="Main jrxml"/>
+	<subDataset name="CurrencyTotals" uuid="3c6306c4-7e63-4951-b013-d71326eb4bcf">
+		<parameter name="DayFrom" class="java.lang.String"/>
+		<parameter name="DayTo" class="java.lang.String"/>
+		<parameter name="Currency" class="java.lang.String"/>
+		<parameter name="Invoicing" class="java.lang.String"/>
+		<parameter name="DeparturePortList" class="java.lang.String[]"/>
+		<parameter name="ArrivalPortList" class="java.lang.String[]"/>
+		<parameter name="PaymentMethod" class="java.lang.String"/>
+		<parameter name="Company" class="java.lang.String">
+			<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+		</parameter>
+		<parameter name="DeparturePortCON" class="java.lang.String" isForPrompting="false">
+			<defaultValueExpression><![CDATA[($P{DeparturePortList} == null || $P{DeparturePortList}.toString().length() == new Integer("2"))
+? ""
+: " AND BR.ROUTEDEPARTUREPORT IN ('"+ $P{DeparturePortList}.toString().replaceAll("\\x5B","").replaceAll("\\x5D","").replaceAll("\\x2C","','").replaceAll("\\x20","")+"' )"]]></defaultValueExpression>
+		</parameter>
+		<parameter name="ArrivalPortCON" class="java.lang.String" isForPrompting="false">
+			<defaultValueExpression><![CDATA[($P{ArrivalPortList} == null || $P{ArrivalPortList}.toString().length() == new Integer("2"))
+? ""
+: " AND BR.ROUTEARRIVALPORT IN ('"+ $P{ArrivalPortList}.toString().replaceAll("\\x5B","").replaceAll("\\x5D","").replaceAll("\\x2C","','").replaceAll("\\x20","")+"' )"]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select
+    CURRENCYNAME,
+    DECIMALS,
+    Sum(BOOKINGAMOUNT) as BOOKINGAMOUNT,
+    Sum(TOTALCOMMISSION) as totalcommission,
+    Sum(ROUTEAMOUNT) AS ROUTEAMOUNT
+from
+(
+SELECT
+    b.bookingreference,
+    B.CURRENCYNAME,
+    C.DECIMALS,
+    br.ROUTEDEPARTUREPORT,
+    br.ROUTEARRIVALPORT,
+    b.BOOKINGVERSION,
+    DECODE(ROW_NUMBER() OVER(PARTITION BY B.BOOKINGREFERENCE order by BR.DEPARTUREDATE),1,B.GROSSAMOUNT,0) as BOOKINGAMOUNT,
+    DECODE(ROW_NUMBER() OVER(PARTITION BY B.BOOKINGREFERENCE order by BR.DEPARTUREDATE),1,B.TOTALCOMMISSION,0) as TOTALCOMMISSION,
+    BR.GROSSAMOUNT AS ROUTEAMOUNT
+
+FROM IBE_BOOKING B
+
+    left JOIN IBE_BOOKINGROUTE BR
+    ON B.BOOKINGREFERENCE = BR.BOOKINGREFERENCE
+    AND B.BOOKINGVERSION = BR.BOOKINGVERSION
+    AND B.STARTDATE = BR.BOOKINGSTARTDATE
+
+    LEFT JOIN OA_DOCUMENTBOOKING DB
+    ON B.BOOKINGREFERENCE = DB.BOOKINGREFERENCE
+    AND B.BOOKINGVERSION = DB.BOOKINGVERSION
+    AND B.STARTDATE = DB.BOOKINGSTARTDATE
+
+    left JOIN OA_DOCUMENT D
+    ON DB.DOCUMENTID = D.DOCUMENTID
+    AND DB.DOCUMENTSTARTDATE = D.STARTDATE
+
+    LEFT JOIN PAD_CURRENCY C
+    ON B.CURRENCYNAME = C.NAME
+    AND B.CURRENCYSTARTDATE = C.STARTDATE
+
+WHERE
+    B.BOOKINGVERSION =
+        (SELECT MAX(B2.BOOKINGVERSION) FROM IBE_BOOKING B2
+        WHERE B.BOOKINGREFERENCE=B2.BOOKINGREFERENCE)
+    AND B.BOOKINGSTATUS in ('BOOKED','MODIFIED')
+    AND (Db.DOCUMENTID=
+        (select max(db2.documentid) from OA_DOCUMENTBOOKING db2
+        where b.BOOKINGREFERENCE = db2.BOOKINGREFERENCE
+        and b.BOOKINGVERSION=db2.BOOKINGVERSION
+        and db2.BOOKINGSTARTDATE = B.STARTDATE) or db.documentid is null)
+    AND (B.PAYMENTMETHOD = $P{PaymentMethod} or $P{PaymentMethod} is null)
+    and br.DEPARTUREDATE>=to_date($P{DayFrom},'yyyymmdd')
+    and br.ARRIVALDATE<=to_date($P{DayTo}||'235959','yyyymmddhh24miss')
+    and (b.BUSINESSUNITCOMPANYNAME=$P{Company} or $P{Company} is null)
+    $P!{DeparturePortCON}
+    $P!{ArrivalPortCON}
+    and (c.name = $P{Currency} or $P{Currency} is null)
+    and (D.ISBULK = DECODE($P{Invoicing},'1','N','2','Y') or ($P{Invoicing}='0' and D.ISBULK is null) or $P{Invoicing} is null)
+)
+
+group by
+    currencyname,decimals]]>
+		</queryString>
+		<field name="CURRENCYNAME" class="java.lang.String"/>
+		<field name="DECIMALS" class="java.math.BigDecimal"/>
+		<field name="BOOKINGAMOUNT" class="java.math.BigDecimal"/>
+		<field name="TOTALCOMMISSION" class="java.math.BigDecimal"/>
+		<field name="ROUTEAMOUNT" class="java.math.BigDecimal"/>
+	</subDataset>
+	<parameter name="DateFrom" class="java.sql.Timestamp" isForPrompting="false"/>
+	<parameter name="DateTo" class="java.sql.Timestamp" isForPrompting="false"/>
+	<parameter name="Invoicing" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="Currency" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="DeparturePortList" class="java.lang.String[]" isForPrompting="false"/>
+	<parameter name="ArrivalPortList" class="java.lang.String[]" isForPrompting="false"/>
+	<parameter name="PaymentMethod" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="Company" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="SUB_DIRECTORY" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["C:\\Programmi\\Jaspersoft\\iReport-3.7.6\\MyReport\\"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DeparturePortCON" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[($P{DeparturePortList} == null || $P{DeparturePortList}.toString().length() == new Integer("2"))
+? ""
+: " AND BR.ROUTEDEPARTUREPORT IN ('"+ $P{DeparturePortList}.toString().replaceAll("\\x5B","").replaceAll("\\x5D","").replaceAll("\\x2C","','").replaceAll("\\x20","")+"' )"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ArrivalPortCON" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[($P{ArrivalPortList} == null || $P{ArrivalPortList}.toString().length() == new Integer("2"))
+? ""
+: " AND BR.ROUTEARRIVALPORT IN ('"+ $P{ArrivalPortList}.toString().replaceAll("\\x5B","").replaceAll("\\x5D","").replaceAll("\\x2C","','").replaceAll("\\x20","")+"' )"]]></defaultValueExpression>
+	</parameter>
+	<queryString language="SQL">
+		<![CDATA[SELECT
+    NVL2(D.ISBULK,DECODE(D.ISBULK,'Y','BULK INVOICES','SINGLE INVOICES'),'NOT INVOICED') INVOICING,
+    NVL2(D.ISBULK,DECODE(D.ISBULK,'Y','2','1'),'0') INVOICING_CODE,
+    B.CURRENCYNAME,
+    C.DECIMALS,
+    TO_CHAR(BR.DEPARTUREDATE,'dd/mm/yyyy HH24.MI') AS DEPARTUREDATE,
+    TO_NUMBER(TO_CHAR(BR.DEPARTUREDATE,'yyyymmdd')) AS DAY,
+    BR.ROUTEDEPARTUREPORT,
+    BR.ROUTEARRIVALPORT,
+    B.BOOKINGREFERENCE,
+    B.TICKETNUMBER,
+    TO_CHAR(B.BOOKINGDATE,'dd/mm/yyyy') AS BOOKINGDATE,
+    D.DOCUMENTNUMBER,
+    TO_CHAR(D.DOCUMENTDATE,'dd/mm/yyyy') AS DOCUMENTDATE,
+    DECODE(ROW_NUMBER() OVER(PARTITION BY B.BOOKINGREFERENCE order by BR.DEPARTUREDATE),1,B.GROSSAMOUNT,0) as BOOKINGAMOUNT,
+    DECODE(ROW_NUMBER() OVER(PARTITION BY B.BOOKINGREFERENCE order by BR.DEPARTUREDATE),1,B.TOTALCOMMISSION,0) as TOTALCOMMISSION,
+    BR.GROSSAMOUNT AS ROUTEAMOUNT,
+    B.PAYMENTMETHOD,
+    TO_CHAR(B.ACCOUNTID) AS CUSTOMERID,
+    D.TOTALAMOUNT,
+    (CASE 
+        WHEN (lastDocumentBooking.LAST_INVOICE_NUMBER IS NOT NULL AND D.DOCUMENTNUMBER IS NOT NULL AND D.DOCUMENTNUMBER <> lastDocumentBooking.LAST_INVOICE_NUMBER
+            AND D.TOTALAMOUNT = LAST_INVOICE_AMOUNT) THEN 1
+        WHEN (lastDocumentBooking.LAST_INVOICE_NUMBER IS NOT NULL AND D.DOCUMENTNUMBER IS NULL AND LAST_INVOICE_BOOKING_AMOUNT = B.GROSSAMOUNT
+            AND B.TICKETNUMBER <> lastDocumentBooking.LAST_INVOICE_TICKET_NUMBER) THEN 1
+        ELSE 0
+    END) AS MODIFIED_BUT_SAME_AMOUNT,
+    lastDocumentBooking.LAST_INVOICE_BOOKING_AMOUNT,
+    (CASE
+        WHEN (lastDocumentBooking.LAST_INVOICE_NUMBER IS NULL AND D.DOCUMENTNUMBER IS NULL
+                OR (B.GROSSAMOUNT - LAST_INVOICE_BOOKING_AMOUNT) <> 0) THEN 'YES'
+        WHEN (lastDocumentBooking.LAST_INVOICE_NUMBER IS NOT NULL AND D.DOCUMENTNUMBER IS NOT NULL AND D.DOCUMENTNUMBER <> lastDocumentBooking.LAST_INVOICE_NUMBER
+            AND D.TOTALAMOUNT = LAST_INVOICE_AMOUNT) THEN 'YES'
+        WHEN (lastDocumentBooking.LAST_INVOICE_NUMBER IS NOT NULL AND D.DOCUMENTNUMBER IS NULL AND LAST_INVOICE_BOOKING_AMOUNT = B.GROSSAMOUNT
+            AND B.TICKETNUMBER <> lastDocumentBooking.LAST_INVOICE_TICKET_NUMBER) THEN 'YES'
+        ELSE 'NO'
+    END) AS NEED_INVOICE
+FROM IBE_BOOKING B
+
+    LEFT JOIN IBE_BOOKINGROUTE BR
+    ON B.BOOKINGREFERENCE = BR.BOOKINGREFERENCE
+        AND B.BOOKINGVERSION = BR.BOOKINGVERSION
+        AND B.STARTDATE = BR.BOOKINGSTARTDATE
+
+    LEFT JOIN OA_DOCUMENTBOOKING DB
+    ON B.BOOKINGREFERENCE = DB.BOOKINGREFERENCE
+        AND B.BOOKINGVERSION = DB.BOOKINGVERSION
+        AND B.STARTDATE = DB.BOOKINGSTARTDATE
+
+    LEFT JOIN OA_DOCUMENT D
+    ON DB.DOCUMENTID = D.DOCUMENTID
+        AND DB.DOCUMENTSTARTDATE = D.STARTDATE
+
+    LEFT JOIN PAD_CURRENCY C
+    ON B.CURRENCYNAME = C.NAME
+        AND B.CURRENCYSTARTDATE = C.STARTDATE
+
+    LEFT OUTER JOIN
+    (
+        SELECT doc.DOCUMENTID, doc.DOCUMENTNUMBER AS LAST_INVOICE_NUMBER, documentBooking.BOOKINGREFERENCE, documentBooking.BOOKINGVERSION, doc.TOTALAMOUNT as LAST_INVOICE_AMOUNT,
+            doc.NETAMOUNT AS LAST_INVOICE_NET_AMOUNT, doc.COMMISSIONAMOUNT AS LAST_INVOICE_COMMISSION_AMOUNT,
+            (CASE
+                WHEN booking.GROSSAMOUNT IS NOT NULL THEN booking.GROSSAMOUNT
+                ELSE 0
+             END
+            ) AS LAST_INVOICE_BOOKING_AMOUNT, booking.TICKETNUMBER as LAST_INVOICE_TICKET_NUMBER, doc.CUSTOMERID AS CUSTOMER_LAST_INVOICED
+        FROM OA_DOCUMENTBOOKING documentBooking, OA_DOCUMENT doc,
+            (
+            SELECT documentBooking.BOOKINGREFERENCE, MAX(documentBooking.BOOKINGVERSION) as maxinvoiceversion
+            FROM OA_DOCUMENTBOOKING documentBooking, OA_DOCUMENT doc
+            where documentBooking.enddate = '99991231000000' and doc.ENDDATE = '99991231000000' and
+            doc.DOCUMENTID = documentBooking.DOCUMENTID and doc.STARTDATE = documentBooking.DOCUMENTSTARTDATE
+            and doc.creditstatus = 'NOT CREDITED'
+            GROUP BY documentBooking.BOOKINGREFERENCE
+            ) lastVersionInvoiced,
+            ibe_booking booking
+        where documentBooking.enddate = '99991231000000' and doc.ENDDATE = '99991231000000' and
+        doc.DOCUMENTID = documentBooking.DOCUMENTID and doc.STARTDATE = documentBooking.DOCUMENTSTARTDATE
+        and doc.creditstatus = 'NOT CREDITED'
+        and lastVersionInvoiced.maxinvoiceversion = documentBooking.BOOKINGVERSION
+        and lastVersionInvoiced.bookingreference = documentBooking.BOOKINGREFERENCE
+        and booking.BOOKINGREFERENCE = lastVersionInvoiced.bookingreference
+        and booking.BOOKINGVERSION = lastVersionInvoiced.maxinvoiceversion
+    )lastDocumentBooking
+    ON B.BOOKINGREFERENCE = lastDocumentBooking.BOOKINGREFERENCE
+WHERE
+    B.BOOKINGVERSION =
+        (SELECT MAX(B2.BOOKINGVERSION) FROM IBE_BOOKING B2
+        WHERE B.BOOKINGREFERENCE=B2.BOOKINGREFERENCE)
+    AND B.BOOKINGSTATUS in ('BOOKED','MODIFIED','JOINED')
+    $P!{DeparturePortCON}
+    $P!{ArrivalPortCON}
+    AND (B.PAYMENTMETHOD = $P{PaymentMethod} or $P{PaymentMethod} is null )
+        AND (Db.DOCUMENTID=
+        (select max(db2.documentid) from OA_DOCUMENTBOOKING db2
+        where b.BOOKINGREFERENCE = db2.BOOKINGREFERENCE
+        and b.BOOKINGVERSION=db2.BOOKINGVERSION
+        and db2.BOOKINGSTARTDATE = B.STARTDATE) or db.documentid is null )
+	AND (to_char(BR.DEPARTUREDATE, 'YYYY-MM-DD') >= to_char($P{DateFrom}, 'YYYY-MM-DD'))
+    	AND (to_char(br.ARRIVALDATE, 'YYYY-MM-DD') <= to_char($P{DateTo}, 'YYYY-MM-DD'))
+    and (b.BUSINESSUNITCOMPANYNAME= $P{Company}  or $P{Company} is null )
+    and (b.CURRENCYNAME= $P{Currency}  or  $P{Currency} is null  )
+    and (NVL2(D.ISBULK,DECODE(D.ISBULK,'Y','2','1'),'0')=$P{Invoicing} or $P{Invoicing} is null )
+
+ORDER BY
+    NVL2 (D.ISBULK,DECODE(D.ISBULK,'Y','2','1'),'0'),
+    B.CURRENCYNAME,
+    B.BOOKINGREFERENCE,
+    BR.DEPARTUREDATE]]>
+	</queryString>
+	<field name="INVOICING" class="java.lang.String"/>
+	<field name="INVOICING_CODE" class="java.lang.String"/>
+	<field name="CURRENCYNAME" class="java.lang.String"/>
+	<field name="DECIMALS" class="java.math.BigDecimal"/>
+	<field name="DEPARTUREDATE" class="java.lang.String"/>
+	<field name="DAY" class="java.math.BigDecimal"/>
+	<field name="ROUTEDEPARTUREPORT" class="java.lang.String"/>
+	<field name="ROUTEARRIVALPORT" class="java.lang.String"/>
+	<field name="BOOKINGREFERENCE" class="java.lang.String"/>
+	<field name="TICKETNUMBER" class="java.lang.String"/>
+	<field name="BOOKINGDATE" class="java.lang.String"/>
+	<field name="DOCUMENTNUMBER" class="java.lang.String"/>
+	<field name="DOCUMENTDATE" class="java.lang.String"/>
+	<field name="BOOKINGAMOUNT" class="java.math.BigDecimal"/>
+	<field name="TOTALCOMMISSION" class="java.math.BigDecimal"/>
+	<field name="ROUTEAMOUNT" class="java.math.BigDecimal"/>
+	<field name="PAYMENTMETHOD" class="java.lang.String"/>
+	<field name="CUSTOMERID" class="java.math.BigDecimal"/>
+	<field name="TOTALAMOUNT" class="java.math.BigDecimal"/>
+	<field name="MODIFIED_BUT_SAME_AMOUNT" class="java.math.BigDecimal"/>
+	<field name="LAST_INVOICE_BOOKING_AMOUNT" class="java.math.BigDecimal"/>
+	<field name="NEED_INVOICE" class="java.lang.String"/>
+	<variable name="ROUTE_AMOUNT_CURRENCY" class="java.math.BigDecimal" resetType="Group" resetGroup="currency" calculation="Sum">
+		<variableExpression><![CDATA[$F{ROUTEAMOUNT}]]></variableExpression>
+	</variable>
+	<variable name="COMMISSION_CURRENCY" class="java.math.BigDecimal" resetType="Group" resetGroup="currency" calculation="Sum">
+		<variableExpression><![CDATA[$F{TOTALCOMMISSION}]]></variableExpression>
+	</variable>
+	<variable name="GROSS_AMOUNT_CURRENCY" class="java.math.BigDecimal" resetType="Group" resetGroup="currency" calculation="Sum">
+		<variableExpression><![CDATA[$F{BOOKINGAMOUNT}]]></variableExpression>
+	</variable>
+	<variable name="totalPages" class="java.lang.String">
+		<variableExpression><![CDATA[$V{PAGE_NUMBER}.toString()]]></variableExpression>
+	</variable>
+	<variable name="pageNumber" class="java.lang.Integer" resetType="Page">
+		<variableExpression><![CDATA[$V{PAGE_NUMBER}]]></variableExpression>
+	</variable>
+	<group name="invoicing">
+		<groupExpression><![CDATA[$F{INVOICING}]]></groupExpression>
+	</group>
+	<group name="currency">
+		<groupExpression><![CDATA[$F{CURRENCYNAME}]]></groupExpression>
+		<groupFooter>
+			<band height="14">
+				<printWhenExpression><![CDATA[new Boolean(false)]]></printWhenExpression>
+				<textField>
+					<reportElement x="500" y="1" width="172" height="13" uuid="956ad251-e47b-4a52-8cee-539a6d92c5f9"/>
+					<box rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="Calibri" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{INVOICING} + "  -  " + $F{CURRENCYNAME} + "  Total:"]]></textFieldExpression>
+				</textField>
+				<textField pattern="" isBlankWhenNull="false">
+					<reportElement mode="Transparent" x="672" y="1" width="55" height="13" forecolor="#000000" backcolor="#FFFFFF" uuid="e6e77d0b-5536-4343-bb95-94276de2fc56"/>
+					<box leftPadding="0" rightPadding="1"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" markup="none">
+						<font fontName="Calibri" size="8" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+						<paragraph lineSpacing="Single"/>
+					</textElement>
+					<textFieldExpression><![CDATA[String.format("%,." + $F{DECIMALS}.toString() + "f", $V{GROSS_AMOUNT_CURRENCY})]]></textFieldExpression>
+				</textField>
+				<textField pattern="" isBlankWhenNull="false">
+					<reportElement mode="Transparent" x="727" y="1" width="55" height="13" forecolor="#000000" backcolor="#FFFFFF" uuid="cb7f4d51-badc-4029-a5c6-4d1343f9c2f4"/>
+					<box leftPadding="0" rightPadding="1"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" markup="none">
+						<font fontName="Calibri" size="8" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+						<paragraph lineSpacing="Single"/>
+					</textElement>
+					<textFieldExpression><![CDATA[String.format("%,." + $F{DECIMALS}.toString() + "f", $V{COMMISSION_CURRENCY})]]></textFieldExpression>
+				</textField>
+				<textField pattern="" isBlankWhenNull="false">
+					<reportElement mode="Transparent" x="782" y="1" width="55" height="13" forecolor="#000000" backcolor="#FFFFFF" uuid="db55e468-9201-44d4-879c-05eab902bd0d"/>
+					<box leftPadding="0" rightPadding="1"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" markup="none">
+						<font fontName="Calibri" size="8" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+						<paragraph lineSpacing="Single"/>
+					</textElement>
+					<textFieldExpression><![CDATA[String.format("%,." + $F{DECIMALS}.toString() + "f",$V{ROUTE_AMOUNT_CURRENCY})]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="73">
+			<staticText>
+				<reportElement x="0" y="0" width="315" height="50" uuid="f995a85d-7ea9-4299-86f0-77719fa5488b">
+					<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font fontName="Calibri" size="32" isItalic="true" isUnderline="false"/>
+				</textElement>
+				<text><![CDATA[Sales Per Route]]></text>
+			</staticText>
+			<textField textAdjust="StretchHeight">
+				<reportElement x="0" y="56" width="185" height="16" uuid="3a97d315-625e-4087-8527-27d8fe973384">
+					<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+				</reportElement>
+				<box leftPadding="1" rightPadding="1"/>
+				<textElement>
+					<font fontName="Calibri" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[("Departure Date From: " + new java.text.SimpleDateFormat("dd/MM/yyyy").format($P{DateFrom}) + "\n")
++ ("Departure Date To: " + new java.text.SimpleDateFormat("dd/MM/yyyy").format($P{DateTo}) + "\n" )]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight">
+				<reportElement x="605" y="56" width="230" height="16" uuid="da7b5b7c-4c44-4e92-bbd4-dadaf56048b3">
+					<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+				</reportElement>
+				<box leftPadding="1" rightPadding="1"/>
+				<textElement>
+					<font fontName="Calibri" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($P{Company} == null ? "" : ("Company: " + $P{Company}))]]></textFieldExpression>
+			</textField>
+			<image>
+				<reportElement x="605" y="0" width="230" height="50" uuid="9d693419-595c-4ec2-8f84-55f9df0c6491">
+					<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+				</reportElement>
+				<imageExpression><![CDATA["repo:ebookingLogo.bmp"]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="14" splitType="Stretch">
+			<printWhenExpression><![CDATA[new Boolean($V{PAGE_NUMBER}.intValue()<= new Integer("1"))]]></printWhenExpression>
+			<staticText>
+				<reportElement mode="Opaque" x="235" y="0" width="45" height="13" backcolor="#DCDCDC" uuid="ec0567bb-4bb1-4447-b1b9-53095a567e04"/>
+				<box leftPadding="0">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Booking date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="185" y="0" width="50" height="13" backcolor="#DCDCDC" uuid="8f1c44f4-7af5-482d-bd71-cd12d509735e"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Ticket N.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="120" y="0" width="65" height="13" backcolor="#DCDCDC" uuid="297d732f-3990-4159-b579-935ba761cbee"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Booking Ref.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="485" y="0" width="60" height="13" backcolor="#DCDCDC" uuid="d2911bab-1fe4-432b-a9b5-47319a9b5deb"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Booking Total]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="0" width="45" height="13" backcolor="#DCDCDC" uuid="e472ca24-6d45-46c6-bed3-f09bbb0de6b5"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Dep. Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="365" y="0" width="45" height="13" backcolor="#DCDCDC" uuid="e48a2e00-4581-4e04-a91e-80817b17914a"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Invoice Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="545" y="0" width="60" height="13" backcolor="#DCDCDC" uuid="13a2f901-1825-478b-9a9d-a776c068392f"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Commission]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="315" y="0" width="50" height="13" backcolor="#DCDCDC" uuid="45ad694e-e5f9-4b78-b2c1-d6c4e5c09d73"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Invoice N.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="410" y="0" width="40" height="13" backcolor="#DCDCDC" uuid="86203d5b-f9cc-4aec-8526-7361ed376d4a"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[P. Method]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="45" y="0" width="35" height="13" backcolor="#DCDCDC" uuid="b77006fa-3750-4c93-96fd-c5a9af4137b1"/>
+				<box leftPadding="0">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Dep. Port]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="80" y="0" width="40" height="13" backcolor="#DCDCDC" uuid="28d2ece4-f0f9-462e-9ea2-3dbdbb8f85f9"/>
+				<box leftPadding="0">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Arr. Port]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="605" y="0" width="40" height="13" backcolor="#DCDCDC" uuid="8bd75398-248c-4190-bbfb-b1bc35072bbb"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Customer]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="645" y="0" width="60" height="13" backcolor="#DCDCDC" uuid="703b6b66-ff73-4dec-8e07-d4c11f5fdc1c"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Inv. Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="895" y="0" width="35" height="13" backcolor="#DCDCDC" uuid="4dd34569-de13-4d87-b57b-5df066db6dba"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Need Inv.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="280" y="0" width="35" height="13" backcolor="#DCDCDC" uuid="9e131130-19e6-4830-81cf-eda7d6479849"/>
+				<box leftPadding="0">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Invoicing]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="450" y="0" width="35" height="13" backcolor="#DCDCDC" uuid="6c3ae146-4743-4ed0-9205-2f73c6ff5e71"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Currency]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="835" y="0" width="60" height="13" backcolor="#DCDCDC" uuid="3e6161e1-2175-441e-a1af-e85ab662682a"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Diff. Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="705" y="0" width="60" height="13" backcolor="#DCDCDC" uuid="6696055d-c6f8-40a9-93ad-252474f627fb"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Route Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="765" y="0" width="70" height="13" backcolor="#DCDCDC" uuid="dd676c05-35ad-476f-9c09-898c2732b473"/>
+				<box leftPadding="1">
+					<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<text><![CDATA[Last Booking. Amount]]></text>
+			</staticText>
+		</band>
+	</pageHeader>
+	<detail>
+		<band height="13">
+			<textField>
+				<reportElement x="0" y="0" width="45" height="13" uuid="e507ff83-5f33-4b46-9d1a-d92a51df29b0"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{DEPARTUREDATE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="45" y="0" width="35" height="13" uuid="559a2d63-de4f-4d08-8ef6-f1e4231069ab"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{ROUTEDEPARTUREPORT}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="80" y="0" width="40" height="13" uuid="ea809edd-617e-4e08-b1b1-0856512e54da"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{ROUTEARRIVALPORT}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="120" y="0" width="65" height="13" uuid="c3daba69-57fa-40ea-b3bf-26c48ed2d557"/>
+				<box leftPadding="0"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{BOOKINGREFERENCE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="185" y="0" width="50" height="13" uuid="8c1185ba-bcf8-466f-9b79-d2e92ff9e055"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{TICKETNUMBER}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="235" y="0" width="45" height="13" uuid="6341d9c4-c60c-465f-a3c9-0cbb77067974"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{BOOKINGDATE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="315" y="0" width="50" height="13" uuid="0ab4feb4-d635-47ab-bc77-b652dffcd3d4"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{DOCUMENTNUMBER}==null || $F{DOCUMENTNUMBER}.length()==0)? "" : $F{DOCUMENTNUMBER}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="365" y="0" width="45" height="13" uuid="e2e565ef-189b-44a6-a52d-651b03345633"/>
+				<box leftPadding="4"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{DOCUMENTDATE}==null || $F{DOCUMENTDATE}.length()==0) ? "" : $F{DOCUMENTDATE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="410" y="0" width="40" height="13" uuid="efc31709-8925-4576-937d-1a6f28115aa1"/>
+				<box leftPadding="4"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{PAYMENTMETHOD}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="485" y="0" width="60" height="13" uuid="a65e0b77-d0e4-439c-863d-906f93cdd02b"/>
+				<box leftPadding="0" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[BigDecimal.ZERO.compareTo($F{BOOKINGAMOUNT}) == 0 ? "" : String.format( new Locale("it","IT"), "%,." + $F{DECIMALS}.toString() + "f",$F{BOOKINGAMOUNT})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="545" y="0" width="60" height="13" uuid="770fe8b6-39eb-404a-9b76-8a15d06364ec"/>
+				<box leftPadding="0" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[BigDecimal.ZERO.compareTo($F{TOTALCOMMISSION}) == 0 ? "" : String.format(  new Locale("it","IT"), "%,." + $F{DECIMALS}.toString() + "f",$F{TOTALCOMMISSION})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="605" y="0" width="40" height="13" uuid="f731cbf4-6e4c-4ba8-860e-9187ee9370e0"/>
+				<box leftPadding="4"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{CUSTOMERID}==null || $F{CUSTOMERID}.toString().length()==0 ) ? "" : $F{CUSTOMERID}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="645" y="0" width="60" height="13" uuid="c593207d-f66f-4330-84b3-806545a4bdad"/>
+				<box leftPadding="0" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{TOTALAMOUNT}==null || $F{TOTALAMOUNT}.toString().length() ==0) ? "" : String.format( new Locale("it","IT"),"%,."+ $F{DECIMALS}+"f", $F{TOTALAMOUNT} )]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="765" y="0" width="70" height="13" uuid="e13ce2cc-b8d8-441d-b772-fbb0bcf81363"/>
+				<box leftPadding="0" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{LAST_INVOICE_BOOKING_AMOUNT}==null || $F{LAST_INVOICE_BOOKING_AMOUNT}.toString().length()==0  ) ? "" :  String.format( new Locale("it","IT"),"%,."+$F{DECIMALS}+"f", $F{LAST_INVOICE_BOOKING_AMOUNT})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="895" y="0" width="33" height="13" uuid="38c3a567-4bbf-4980-b4f9-cf747a884850"/>
+				<box leftPadding="4"/>
+				<textElement textAlignment="Center">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{NEED_INVOICE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="835" y="0" width="60" height="13" uuid="df51a6f8-fb6c-4e1c-ab19-aef44966b182"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[String.format(new Locale("it","IT"),"%,."+ $F{DECIMALS}.toString()==null?"0":$F{DECIMALS}.toString()+"f",
+    new Double
+    (
+    new Double(($F{BOOKINGAMOUNT}==null || $F{BOOKINGAMOUNT}.doubleValue()== new Double("0")) ? new Double("0") : $F{BOOKINGAMOUNT}.doubleValue())
+    -
+    new Double(($F{LAST_INVOICE_BOOKING_AMOUNT}==null || $F{LAST_INVOICE_BOOKING_AMOUNT}.doubleValue()==new Double("0")) ? new Double("0") :  $F{LAST_INVOICE_BOOKING_AMOUNT}.doubleValue())
+    )
+)]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" pattern="###0.00">
+				<reportElement x="705" y="0" width="60" height="13" uuid="da29885e-f915-40f6-bcaf-7b295d91bfb6"/>
+				<box leftPadding="0" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[String.format(new Locale("it","IT"),"%,."+ $F{DECIMALS}.toString()+"f", $F{ROUTEAMOUNT}.doubleValue())]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="450" y="0" width="35" height="13" uuid="f0c096ad-7ae7-4082-940c-a09a0b66cd7f"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{CURRENCYNAME}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="280" y="0" width="35" height="13" uuid="67f0c397-6221-4cf3-8a4c-7f885a0512f1"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{INVOICING}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<lastPageFooter>
+		<band height="50">
+			<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+			<textField evaluationTime="Auto">
+				<reportElement x="134" y="21" width="555" height="20" uuid="9faac331-067e-4f35-be2f-8bf3bece09a0"/>
+				<textElement textAlignment="Center">
+					<font fontName="Calibri" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Page " + $V{pageNumber} + " of " + $V{totalPages}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="67">
+			<printWhenExpression><![CDATA[new Boolean(true)]]></printWhenExpression>
+			<staticText>
+				<reportElement x="124" y="9" width="555" height="12" uuid="adddc49c-d23f-4872-ae25-1fced280a567"/>
+				<textElement textAlignment="Center">
+					<font fontName="Calibri" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Currencies Summary]]></text>
+			</staticText>
+			<line>
+				<reportElement x="0" y="37" width="840" height="1" uuid="21d2700a-582f-4fbf-b1ad-3faeed60e67c"/>
+				<graphicElement>
+					<pen lineWidth="0.1"/>
+				</graphicElement>
+			</line>
+			<componentElement>
+				<reportElement mode="Transparent" x="391" y="39" width="445" height="19" backcolor="#FFFFFF" uuid="797012b5-043c-4ffe-92f5-96db0bca1ae4"/>
+				<jr:list xmlns:jr="http://jasperreports.sourceforge.net/jasperreports/components" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd" printOrder="Vertical">
+					<datasetRun subDataset="CurrencyTotals" uuid="eeadb283-d003-4fa4-8462-e7ce39a97de9">
+						<datasetParameter name="DayFrom">
+							<datasetParameterExpression><![CDATA[new java.text.SimpleDateFormat("yyyyMMdd").
+    format($P{DateFrom})]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="DayTo">
+							<datasetParameterExpression><![CDATA[new java.text.SimpleDateFormat("yyyyMMdd").
+    format($P{DateTo})]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="Currency">
+							<datasetParameterExpression><![CDATA[$P{Currency}]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="Invoicing">
+							<datasetParameterExpression><![CDATA[$P{Invoicing}]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="DeparturePortList">
+							<datasetParameterExpression><![CDATA[$P{DeparturePortList}]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="ArrivalPortList">
+							<datasetParameterExpression><![CDATA[$P{ArrivalPortList}]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="PaymentMethod">
+							<datasetParameterExpression><![CDATA[$P{PaymentMethod}]]></datasetParameterExpression>
+						</datasetParameter>
+						<datasetParameter name="Company">
+							<datasetParameterExpression><![CDATA[$P{Company}]]></datasetParameterExpression>
+						</datasetParameter>
+						<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					</datasetRun>
+					<jr:listContents height="19" width="445">
+						<textField>
+							<reportElement x="296" y="0" width="39" height="12" uuid="3fb71894-1f5e-4be2-a7d9-991e1f34806f"/>
+							<textElement>
+								<font fontName="Calibri" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression><![CDATA[$F{CURRENCYNAME}]]></textFieldExpression>
+						</textField>
+						<textField>
+							<reportElement x="335" y="0" width="55" height="12" uuid="8273c50e-1045-4b4b-86a9-92264bb30ceb"/>
+							<box rightPadding="1"/>
+							<textElement textAlignment="Right">
+								<font fontName="Calibri" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression><![CDATA[String.format(new Locale("it","IT"), "%,." + $F{DECIMALS}.toString() + "f",$F{TOTALCOMMISSION})]]></textFieldExpression>
+						</textField>
+						<textField>
+							<reportElement x="390" y="0" width="55" height="12" uuid="1e3a2846-0f51-429f-99be-8159405127b0"/>
+							<box rightPadding="1"/>
+							<textElement textAlignment="Right">
+								<font fontName="Calibri" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression><![CDATA[String.format(new Locale("it","IT"), "%,." + $F{DECIMALS}.toString() + "f", $F{ROUTEAMOUNT})]]></textFieldExpression>
+						</textField>
+					</jr:listContents>
+				</jr:list>
+			</componentElement>
+			<frame>
+				<reportElement x="572" y="24" width="278" height="14" uuid="ca48de10-6433-4666-a8a5-92940ba0aa5d"/>
+				<staticText>
+					<reportElement mode="Opaque" x="158" y="0" width="55" height="13" backcolor="#DCDCDC" uuid="926e879d-bcfd-4e6e-8302-9f7752af6ee6"/>
+					<box leftPadding="1">
+						<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+						<font fontName="Calibri" size="6"/>
+					</textElement>
+					<text><![CDATA[Tot. Commission]]></text>
+				</staticText>
+				<staticText>
+					<reportElement mode="Opaque" x="213" y="0" width="55" height="13" backcolor="#DCDCDC" uuid="c1e87e5a-feaf-4b3d-8aa2-bbd306c4f409"/>
+					<box leftPadding="1">
+						<topPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<leftPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<bottomPen lineWidth="0.25" lineColor="#FFFFFF"/>
+						<rightPen lineWidth="0.25" lineColor="#FFFFFF"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle" markup="none">
+						<font fontName="Calibri" size="6"/>
+					</textElement>
+					<text><![CDATA[Route Amount]]></text>
+				</staticText>
+			</frame>
+		</band>
+	</summary>
+</jasperReport>
